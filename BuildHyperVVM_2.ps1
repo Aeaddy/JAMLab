@@ -174,12 +174,26 @@ if ($MacAddr -eq "000000000000") {
 
 #Connect to SCCM Environment (This requires the SCCM PowerShell module and/or the SCCM Console.)
 #Import the ConfigMgr PowerShell module & connect to ConfigMgr PSDrive
-$snip = $env:SMS_ADMIN_UI_PATH.Length-5
-$modPath = $env:SMS_ADMIN_UI_PATH.Substring(0,$snip)
-Import-Module "$modPath\ConfigurationManager.psd1"
-$SiteCode = Get-PSDrive -PSProvider CMSite
-Set-Location "$($SiteCode.Name):\"
-$PSD = $($SiteCode.Name)
+Write-Output "$UFORMATTEDDATE : $VMName : Validating the  Configuration Manager PowerShell module is present." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+
+if ($env:SMS_ADMIN_UI_PATH) {
+    Write-Output "$UFORMATTEDDATE : $VMName : Found Configuration Manager PowerShell module. Attempting to connect to the Configuration Manager environment to create prestaged computer object." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+
+    $snip = $env:SMS_ADMIN_UI_PATH.Length-5
+    $modPath = $env:SMS_ADMIN_UI_PATH.Substring(0,$snip)
+    Import-Module "$modPath\ConfigurationManager.psd1"
+    $SiteCode = Get-PSDrive -PSProvider CMSite
+    Set-Location "$($SiteCode.Name):\"
+    $PSD = $($SiteCode.Name)
+
+    $CMConnectedSite = Get-CMSite -SiteCode $PSD
+
+    if ($CMConnectedSite) {
+        Write-Output "$UFORMATTEDDATE : $VMName : There seems to be some problems with the MAC address.  Please troubleshoot manually." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber       
+
+}else{
+    Write-Output "$UFORMATTEDDATE : $VMName : Error! Could not find or connect to the Configuration Manager PowerShell module." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber   
+}
 
 #Import Computer Details to create an SCCM Prestaged Computer Object and add it to Windows Deployment Collection
 Import-CMComputerInformation -ComputerName $VMName -MacAddress $macaddr2 -CollectionName $SCCMCollectionName01
