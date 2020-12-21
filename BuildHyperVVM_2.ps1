@@ -39,12 +39,12 @@ Write-Output "$UFORMATTEDDATE : $VMName : The Device is going to be added create
 
 
 #Check for Boot file
-Write-Output "$UFORMATTEDDATE : $VMName : Validating the boot file exists." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+Write-Output "$UFORMATTEDDATE : $VMName : Validating the boot file ISO exists." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
 
 if (Test-Path -Path $BootFile) {
-    Write-Output "$UFORMATTEDDATE : $VMName : Successfully validated the boot file is available." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Write-Output "$UFORMATTEDDATE : $VMName : Successfully validated the boot file ISO is available." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
 }else{
-    Write-Output "$UFORMATTEDDATE : $VMName : Error! The boot file was not found. Please validate the boot file path." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Write-Output "$UFORMATTEDDATE : $VMName : Error! The boot file ISO was not found. Please validate the boot file path." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     #exit   
 }
 
@@ -290,9 +290,29 @@ $VMDVDCheck0 = Get-VMDvdDrive -VMName $VMName
 if (!$VMDVDCheck0) {
     Write-Output "$UFORMATTEDDATE : $VMName : Creating DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     Add-VMDvdDrive $VMName
+    $VMDVDCheck0 = Get-VMDvdDrive -VMName $VMName
+    if ($VMDVDCheck0) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully created a DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed creating a DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        #exit
+    }
 
-    Set-VMDvdDrive -VMName $VMName -Path $BootFile
-    $VMCDRom = Get-VMDvdDrive -VMName $VMName
+}else{
+    Write-Output "$UFORMATTEDDATE : $VMName : Warning: A DVD drive was already detected on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+}
+
+#Mountng ISO
+Write-Output "$UFORMATTEDDATE : $VMName : Mounting boot file to VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+Set-VMDvdDrive -VMName $VMName -Path $BootFile
+$VMCDRom = Get-VMDvdDrive -VMName $VMName
+$VMCDRomBootPath = $VMCDRom.Path
+if ($VMCDRomBootPath -eq $BootFile) {
+    Write-Output "$UFORMATTEDDATE : $VMName : Successfully mounted boot file at path: $BootFile, to VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+}else{
+    Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed mounting boot file at path: $BootFile." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+}
+
 
 #Set Boot Order to DVDDrive
 Set-VMFirmware -VMName $VMName -FirstBootDevice $VMCDRom
