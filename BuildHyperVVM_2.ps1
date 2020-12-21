@@ -32,8 +32,8 @@ Write-Output "$UFORMATTEDDATE : $VMName : Beginning creation and setup of new Hy
 
 #Workstation details
 $BootFile = "E:\Media\source files\OSD\Boot ISO\U_ZTI_SCCM_WinPE_ISO_1.iso"
-$SCCMCollectionName01 = "All Systems"
-$SCCMCollectionName02 = "UnattendedInstall"
+$SCCMCollectionName01 = "All Systems" #Deployment Limiting Collection
+$SCCMCollectionName02 = "UnattendedInstall" #Deployment Collection
 Write-Output "$UFORMATTEDDATE : $VMName : The Boot file being used is: $BootFile" | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
 Write-Output "$UFORMATTEDDATE : $VMName : The Device is going to be added created in MEMCM and added to the MEMCM Collections: $SCCMCollectionName01 and $SCCMCollectionName02 for OS Imaging." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
 
@@ -189,33 +189,110 @@ if ($env:SMS_ADMIN_UI_PATH) {
     $CMConnectedSite = Get-CMSite -SiteCode $PSD
 
     if ($CMConnectedSite) {
-        Write-Output "$UFORMATTEDDATE : $VMName : There seems to be some problems with the MAC address.  Please troubleshoot manually." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber       
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully connected to the Configuration Manager site: $PSA." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error: Could not connect to the Configuration Manager site: $PSA." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        #exit
+    }       
+
 
 }else{
-    Write-Output "$UFORMATTEDDATE : $VMName : Error! Could not find or connect to the Configuration Manager PowerShell module." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber   
+    Write-Output "$UFORMATTEDDATE : $VMName : Error! Could not find or connect to the Configuration Manager PowerShell module." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    #exit
 }
+
 
 #Import Computer Details to create an SCCM Prestaged Computer Object and add it to Windows Deployment Collection
-Import-CMComputerInformation -ComputerName $VMName -MacAddress $macaddr2 -CollectionName $SCCMCollectionName01
-Invoke-CMCollectionUpdate -Name $SCCMCollectionName01
-$CMDevice = Get-CMDevice -Name $VMName
-$C = 1
-while (!$CMDevice) {
-    write-output "Waiting for New Object to be popluated"
-    $C = $C+1
-    write-output "$C"
+Write-Output "$UFORMATTEDDATE : $VMName : Begin creatation of prestaged computer record in Configuration Manager in $SCCMCollectionName01 collection." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+Write-Output "$UFORMATTEDDATE : $VMName : Validating a computer record with the name $VMName does not exist in Configuration Manager." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+$CMDeviceExists0 = Get-CMDevice -Name $VMName
+if (!$CMDeviceExists0) {
+    
+    #Importing computer record
+    Import-CMComputerInformation -ComputerName $VMName -MacAddress $macaddr2 -CollectionName $SCCMCollectionName01
+    Invoke-CMCollectionUpdate -Name $SCCMCollectionName01
     $CMDevice = Get-CMDevice -Name $VMName
-}
-Add-CMDeviceCollectionDirectMembershipRule -Resource $CMDevice -CollectionName $SCCMCollectionName02
-Invoke-CMCollectionUpdate -Name $SCCMCollectionName02
+    $C = 1
+    while (!$CMDevice) {
+        #write-output "Waiting for New Object to be popluated"
+        $C = $C+1
+        #write-output "$C"
+        $CMDevice = Get-CMDevice -Name $VMName
+        if ($C -eq "320") { 
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! It the device was not created in the Configuration Manager database." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        #exit 
+        }
+    }
 
-start-sleep -Seconds 5
-Set-Location C:
+    #Validate computer record creation
+    $CMDeviceExists1 = Get-CMDevice -Name $VMName
+    if ($CMDeviceExists1) {
+
+        Write-Output "$UFORMATTEDDATE : $VMName : Validated the computer record with the name $VMName was successfully created in Configuration Manager." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        
+        Write-Output "$UFORMATTEDDATE : $VMName : Attempting to add the computer record with the name $VMName to the $SCCMCollectionName02 collection in Configuration Manager." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        Write-Output "$UFORMATTEDDATE : $VMName : Validating that the collection $SCCMCollectionName02 is available and that a device record with the name $VMName is not already a member." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+
+        $CMCollExists0 = Get-CMDeviceCollection -Name $SCCMCollectionName02
+        if ($CMCollExists0) {
+
+            Write-Output "$UFORMATTEDDATE : $VMName : Successfully validated the collection $SCCMCollectionName02 exists in Configuration Manager.  Checking for device membership." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+
+            $CMDevAdded0 = Get-CMDeviceCollectionDirectMembershipRule -CollectionName $SCCMCollectionName02 -ResourceName $VMName
+            if (!$CMDevAdded0) {
+                Write-Output "$UFORMATTEDDATE : $VMName : The collection does not contain the record $VMName.  Attempting to add the device to the collection." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+                Add-CMDeviceCollectionDirectMembershipRule -Resource $CMDevice -CollectionName $SCCMCollectionName02
+                Write-Output "Device Added"
+                Invoke-CMCollectionUpdate -Name $SCCMCollectionName02
+                write-output "Updating Collection."
+                while (!$CMDeviceInColl) {
+                    write-output "Waiting for New Object to be popluated in the $SCCMCollectionName02 collection."
+                    $C = $C+1
+                    write-output "$C"
+                    $CMDeviceInColl = Get-CMDevice -Name $VMName
+                }
+
+                Write-Output "$UFORMATTEDDATE : $VMName : Validating the device $VMName was added to device collection $SCCMCollectionName02." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+                $CMDevAdded1 = Get-CMDeviceCollectionDirectMembershipRule -CollectionName $SCCMCollectionName02 -ResourceName $VMName
+                if ($CMDevAdded1) {
+                    Write-Output "$UFORMATTEDDATE : $VMName : The device $VMName was successfully added to device collection $SCCMCollectionName02." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+                    Set-Location C:
+                }else{
+                    Write-Output "$UFORMATTEDDATE : $VMName : Error validating the device $VMName was added to device collection $SCCMCollectionName02." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+                    #exit
+                }
+
+            }else{
+                 Write-Output "$UFORMATTEDDATE : $VMName : Error! A record for this device $VMName has been identified as a member of the collection $SCCMCollectionName02 or something else has gone wrong. Exiting script for further troubleshooting." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+                 #exit
+            }
+
+        }else{
+            Write-Output "$UFORMATTEDDATE : $VMName : Error! Could not find a Device Collection with the name: $SCCMCollectionName02. Please validate manually." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            #exit
+        }
+
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! Could not find the computer record with the name $VMName in Configuration Manager.  Please see the Configuration Manager logs for more details." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        #exit        
+    }
+
+}else{
+    Write-Output "$UFORMATTEDDATE : $VMName : Error! A computer record with the name $VMName was found in the Configuration Manager database. The computer record was not created." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    #exit
+}
+
 
 #Create DVD Drive and Connect to VM with mounted ISO
-Add-VMDvdDrive $VMName 
-Set-VMDvdDrive -VMName $VMName -Path $BootFile
-$VMCDRom = Get-VMDvdDrive -VMName $VMName
+Write-Output "$UFORMATTEDDATE : $VMName : Beginning creation of DVD drive on VM $VMName and mounting ISO file at: $BootFile" | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+Write-Output "$UFORMATTEDDATE : $VMName : Checking for DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+$VMDVDCheck0 = Get-VMDvdDrive -VMName $VMName
+if (!$VMDVDCheck0) {
+    Write-Output "$UFORMATTEDDATE : $VMName : Creating DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Add-VMDvdDrive $VMName
+
+    Set-VMDvdDrive -VMName $VMName -Path $BootFile
+    $VMCDRom = Get-VMDvdDrive -VMName $VMName
 
 #Set Boot Order to DVDDrive
 Set-VMFirmware -VMName $VMName -FirstBootDevice $VMCDRom
