@@ -283,7 +283,7 @@ If ($VMType -eq "Workstation") {
 
 
     #Create DVD Drive and Connect to VM with mounted ISO
-    Write-Output "$UFORMATTEDDATE : $VMName : Beginning creation of DVD drive on VM $VMName and mounting ISO file at: $BootFile" | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Write-Output "$UFORMATTEDDATE : $VMName : Beginning creation of DVD drive on VM $VMName and mounting ISO file at: $BootFile." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     Write-Output "$UFORMATTEDDATE : $VMName : Checking for DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     $VMDVDCheck0 = Get-VMDvdDrive -VMName $VMName
     if (!$VMDVDCheck0) {
@@ -310,6 +310,7 @@ If ($VMType -eq "Workstation") {
         Write-Output "$UFORMATTEDDATE : $VMName : Successfully mounted boot file at path: $BootFile, to VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed mounting boot file at path: $BootFile." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
     }
 
 
@@ -323,6 +324,7 @@ If ($VMType -eq "Workstation") {
         Write-Output "$UFORMATTEDDATE : $VMName : Successfully set the DVDDrive as the primary boot device for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : Error! the boot device could not be validated for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
     }
 
 
@@ -387,54 +389,291 @@ If ($VMType -eq "Workstation") {
 #Windows Server
 If ($VMType -eq "Server") {
 
-    $BootFile = "E:\Media\source files\OSD\Boot ISO\U_LiteTouchPE_x64.iso"
+    Write-Output "$UFORMATTEDDATE : $VMName : Beginning creation and setup of new HyperV virtual server running Windows Server 2019." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
 
-    #Create Virtual Machine - GEN2
-    New-VM -Name $VMName -MemoryStartupBytes 4096MB -Path "D:\Hyper-V\ConfigurationFiles\Virtual Machines" -Generation 2
+    #Workstation details
+    $BootFile = "E:\Media\source files\OSD\Boot ISO\U_LiteTouchPE_x64.iso"
+    $MDTSQLServer = "SQL1.jam.on"
+    $MDTSQLDB = "MDT"
+
+    Write-Output "$UFORMATTEDDATE : $VMName : The Boot file being used is: $BootFile" | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    
+
+    #Check for Boot file
+    Write-Output "$UFORMATTEDDATE : $VMName : Validating the boot file ISO exists." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+
+    if (Test-Path -Path $BootFile) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully validated the boot file ISO is available." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! The boot file ISO was not found. Please validate the boot file path." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit   
+    }
+
+
+    #Begin VM creation
+    Write-Output "$UFORMATTEDDATE : $VMName : Begin creation of the Gen2 HyperV virtual machine." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Write-Output "$UFORMATTEDDATE : $VMName : Checking to see if VM exists." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+
+    #Checking to see if VM exists
+    $VMExists0 = get-vm -Name $VMName
+    if (!$VMExists0) {
+
+        Write-Output "$UFORMATTEDDATE : $VMName : Warning. VM $VMName does not exist. Beginning creation of vm: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        #Create Virtual Machine - GEN2
+        New-VM -Name $VMName -MemoryStartupBytes 4096MB -Path "D:\Hyper-V\ConfigurationFiles\Virtual Machines" -Generation 2
+
+        $VMExists1 = get-vm -Name $VMName
+        if (!$VMExists1) {
+            Write-Output "$UFORMATTEDDATE : $VMName : Error! Cannot create the virtual machine. Please see HyperV event logs for more details." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            exit
+        }else{
+            Write-Output "$UFORMATTEDDATE : $VMName : A new virtual machine was successfully created." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }
+
+    }
+
 
     #Create Virtual Disk
-    New-VHD -Path "D:\Hyper-V\Virtual Hard Disks\$VMName.vhdx" -SizeBytes 60GB -Dynamic
+    $VHDPath = "D:\Hyper-V\Virtual Hard Disks\$VMName.vhdx"
+    Write-Output "$UFORMATTEDDATE : $VMName : Checking to see if a VHD file already exists with the name $VMName.vhdx." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    $VHDExists0 = Get-VHD -Path $VHDPath
+    if (!$VHDExists0) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Creating a new 60 GB virtual disk." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        New-VHD -Path $VHDPath -SizeBytes 60GB -Dynamic
+        $VHDExists1 = Get-VHD -Path $VHDPath
+        if (!$VHDExists1) {
+            Write-Output "$UFORMATTEDDATE : $VMName : Error! A virtual hard disk was not created. Please see HyperV event logs for more details." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            exit
+        }else{
+            Write-Output "$UFORMATTEDDATE : $VMName : A virtual hard disk was created in the following location: $VHDPath." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! A VHD file already exists with the name ""$VMName.vhdx""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
+    }
+
 
     #Connect Virtual Disk to VM
-    Add-VMHardDiskDrive -VMName $VMName -Path "D:\Hyper-V\Virtual Hard Disks\$VMName.vhdx"
+    $VHDConnect0 = Get-VMHardDiskDrive -VMName $VMName
+    Write-Output "$UFORMATTEDDATE : $VMName : Checking to see if the virtual virtual disk ""$VMName.vhdx"" is connected to this VM." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    if (!$VHDConnect0) {
+        Write-Output "$UFORMATTEDDATE : $VMName : A virtual disk is not connected to this VM.  Connecting the virtual disk at path: $VHDPath." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        Add-VMHardDiskDrive -VMName $VMName -Path $VHDPath
+        $VHDConnect = Get-VMHardDiskDrive -VMName $VMName
+
+        if (!$VHDConnect) {
+            Write-Output "$UFORMATTEDDATE : $VMName : Error! The virtual machine has no virtual disks connected." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            exit
+        }else{
+
+            $VHDControllerNum = $VHDConnect.ControllerNumber
+            $VHDControllerLoc = $VHDConnect.ControllerLocation
+
+            if ($VHDControllerNum -eq "0" -and $VHDControllerLoc -eq "0") {
+                Write-Output "$UFORMATTEDDATE : $VMName : The virtual disk was successfully connected to the virtual machine as SCSI disk 0." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            }
+
+        }
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! The virtual machine has no virtual disks connected." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }
+
 
     #Connect Network Adapter to Internal Network Switch
+    Write-Output "$UFORMATTEDDATE : $VMName : Connecting the virtual network adapter to the Internal switch." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     Connect-VMNetworkAdapter -VMName $VMName -SwitchName Internal
+    $VMNetConnect = Get-VMNetworkAdapter -VMName $VMName
+    $VMNetConnectSwitch = $VMNetConnect.SwitchName
+    if (!$VMNetConnectSwitch) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! There is no switch associated to the virtual network adapter." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
+    }else{
+        if ($VMNetConnectSwitch -eq "internal") {
+            Write-Output "$UFORMATTEDDATE : $VMName : The virtual network adapter has the ""Internal"" switch defined successfully." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }else{
+            Write-Output "$UFORMATTEDDATE : $VMName : Error! There is a virtual switch defined, but it is not internal. The switch that it is connected to is $VMNetConnectSwitch. Please troubleshoot manually." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            exit
+        }
+    }
 
-    #Set Dynamic Memory Details
-    Set-VMMemory -VMName $VMName -DynamicMemoryEnabled $true -StartupBytes 4096MB -MinimumBytes 2148MB -MaximumBytes 4096MB
 
     #Start and Stop VM to generate MAC Address
-    Start-VM –Name $VMName
-    start-sleep -Seconds 5
-    Stop-VM -Name $VMName -TurnOff
+    Write-Output "$UFORMATTEDDATE : $VMName : Beginning the process of generating a valid MAC address." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    $MacAddr = Get-VM -Name $VMName | Get-VMNetworkAdapter | select -ExpandProperty MacAddress
+    if ($MacAddr -eq "000000000000") {
+        Write-Output "$UFORMATTEDDATE : $VMName : The current MAC address is 00:00:00:00:00:00." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        Start-VM –Name $VMName
+        $d = "."
+        while ($MacAddr -eq "000000000000") {
+            $d = $d + "."
+            start-sleep -Seconds 1
+            $MacAddr = Get-VM -Name $VMName | Get-VMNetworkAdapter | select -ExpandProperty MacAddress
+            Write-Output "$UFORMATTEDDATE : $VMName : Waiting for the VM to boot and generate a valid MAC address$d" | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }
+
+        #Format the MAC address from HyperV VM
+        $macaddr2 = ($MacAddr | ForEach-Object {
+            $_.Insert(2,":").Insert(5,":").Insert(8,":").Insert(11,":").Insert(14,":")
+        }) -join ' '
+
+        Write-Output "$UFORMATTEDDATE : $VMName : A valid MAC address has been generated for the VM: $macaddr2" | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+
+        Stop-VM -Name $VMName -TurnOff
+
+    }else{
+        if ($MacAddr) {
+            #Format the MAC address from HyperV VM
+            $macaddr2 = ($MacAddr | ForEach-Object {
+                $_.Insert(2,":").Insert(5,":").Insert(8,":").Insert(11,":").Insert(14,":")
+            }) -join ' '
+            Write-Output "$UFORMATTEDDATE : $VMName : The MAC address $macaddr2." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }else{
+            Write-Output "$UFORMATTEDDATE : $VMName : There seems to be some problems with the MAC address.  Please troubleshoot manually." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            exit
+        }
+    }
+
+
+    #Connect to MDT PowerShell Module
+    Write-Output "$UFORMATTEDDATE : $VMName : Importing the MDT PowerShell module." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Import-Module C:\windows\system32\MDTDB.psm1 -ErrorAction Stop
+    $MDTModule = Get-Module -Name MDTDB
+    if ($MDTModule) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully imported the MDT PowerShell module." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Failed! Could not imported the MDT PowerShell module." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
+    }
+
 
     #Connect to MDT Database
-    Import-Module C:\windows\system32\MDTDB.psm1 -ErrorAction Stop
-    Connect-MDTDatabase -sqlServer SQL1.jam.on -database MDT -ErrorAction stop
+    Write-Output "$UFORMATTEDDATE : $VMName : Importing the MDT PowerShell module." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Connect-MDTDatabase -sqlServer $MDTSQLServer -database $MDTSQLDB -ErrorAction stop
+    If (($mdtSQLConnection.state -eq "Open") -and ($mdtSQLConnection.DataSource -eq $MDTSQLServer)) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully connected to the MDT database: ""$MDTSQLDB""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed to connect to the MDT Database: ""$MDTSQLDB""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
+    }
 
-    #Get and format MAC address from HyperV VM
-    $MacAddr = Get-VM -Name $VMName | Get-VMNetworkAdapter | select -ExpandProperty MacAddress
-    $macaddr2 = ($MacAddr | ForEach-Object {
-        $_.Insert(2,":").Insert(5,":").Insert(8,":").Insert(11,":").Insert(14,":")
-    }) -join ' '
 
     #Create a new entry in the MDT Database
+    Write-Output "$UFORMATTEDDATE : $VMName : Attempting to create a new record in the MDT database for computer: ""$VMName""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     new-mdtcomputer -macAddress $MacAddr2 -description $VMName -settings @{OSInstall='YES'; OSDComputerName=$VMName}
+    $MDTComputerExists = Get-MDTComputer -macAddress $macaddr2
+    if ($MDTComputerExists) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully created a new record in the MDT database for computer: ""$VMName""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed to create a new record in the MDT database for computer: ""$VMName""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit      
+    }
+
 
     #Create DVD Drive and Connect to VM with mounted ISO
-    Add-VMDvdDrive $VMName 
+    Write-Output "$UFORMATTEDDATE : $VMName : Beginning creation of DVD drive on VM $VMName and mounting ISO file at: $BootFile." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Write-Output "$UFORMATTEDDATE : $VMName : Checking for DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    $VMDVDCheck0 = Get-VMDvdDrive -VMName $VMName
+    if (!$VMDVDCheck0) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Creating DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        Add-VMDvdDrive $VMName
+        $VMDVDCheck0 = Get-VMDvdDrive -VMName $VMName
+        if ($VMDVDCheck0) {
+            Write-Output "$UFORMATTEDDATE : $VMName : Successfully created a DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }else{
+            Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed creating a DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            exit
+        }
+
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Warning: A DVD drive was already detected on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }
+
+    #Mountng ISO
+    Write-Output "$UFORMATTEDDATE : $VMName : Mounting boot file to VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     Set-VMDvdDrive -VMName $VMName -Path $BootFile
     $VMCDRom = Get-VMDvdDrive -VMName $VMName
+    $VMCDRomBootPath = $VMCDRom.Path
+    if ($VMCDRomBootPath -eq $BootFile) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully mounted boot file at path: $BootFile, to VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed mounting boot file at path: $BootFile." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
+    }
+
 
     #Set Boot Order to DVDDrive
+    Write-Output "$UFORMATTEDDATE : $VMName : Attempting to set DVDDrive as the primary boot device for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     Set-VMFirmware -VMName $VMName -FirstBootDevice $VMCDRom
-    #Set Virtual Processor Count
-    Set-VMProcessor -VMName $VMName -Count 4
+    $BootDevices = Get-VMFirmware -VMName $VMName | select -ExpandProperty BootOrder | select -ExpandProperty Device
+    $FirstBootDevice = $BootDevices[0]
+    $FirstBootDevicePath = $FirstBootDevice.Path
+    if ($FirstBootDevicePath -eq $BootFile) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully set the DVDDrive as the primary boot device for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! the boot device could not be validated for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
+    }
 
-    #Start the VM
-    Start-VM –Name $VMName
+
+    #Set Dynamic Memory Details
+    Write-Output "$UFORMATTEDDATE : $VMName : Validating Dynamic Memory is enabled for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    $VMDynamicMemoryValue0 = Get-VMMemory -VMName $VMName | select -ExpandProperty DynamicMemoryEnabled
+
+    if ($VMDynamicMemoryValue0 -eq $False) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Dynamic Memory is not enabled for VM: $VMName. Enabling Dynamic Memory." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        Set-VMMemory -VMName $VMName -DynamicMemoryEnabled $true -StartupBytes 4096MB -MinimumBytes 2148MB -MaximumBytes 4096MB
+        $VMDynamicMemoryValue1 = Get-VMMemory -VMName $VMName | select -ExpandProperty DynamicMemoryEnabled
+        if ($VMDynamicMemoryValue0 -eq "False") {
+            Write-Output "$UFORMATTEDDATE : $VMName : Error!  Dynamic Memory could not be enabled for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }else{
+            Write-Output "$UFORMATTEDDATE : $VMName : Successfully enabled Dynamic Memory for VM: $VMName. Enabling Dynamic Memory. Configuring VM to use between 2148 MB and 4096 MB or RAM." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Warning. The VM $VMName is already configured to use Dynamic Memory." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }
+
+
+    #Set Virtual Processor Count
+    Write-Output "$UFORMATTEDDATE : $VMName : Validating CPU count VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    $VMCPUCount0 = Get-VMProcessor -VMName $VMName | select -ExpandProperty Count
+    if ($VMCPUCount0 -ne 4) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Setting CPU count from ""$VMCPUCount"" to ""4"" for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        Set-VMProcessor -VMName $VMName -Count 4
+        $VMCPUCount1 = Get-VMProcessor -VMName $VMName | select -ExpandProperty Count
+        if ($VMCPUCount1 -eq 4) {
+            Write-Output "$UFORMATTEDDATE : $VMName : Successfully set the CPU count to ""4"" for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }else{
+            Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed to change the CPU count from ""$VMCPUCount"" to ""4"" for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            exit
+        }
+
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Warning. The CPU count was already set to ""4"" for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }
+
+
+    #Start VM and Begin Setup
+    Write-Output "$UFORMATTEDDATE : $VMName : Checking the powre state for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    $VMPowerState0 = Get-VM -Name $VMName | select -ExpandProperty State
+    if ($VMPowerState0 -eq "Off") {
+        Write-Output "$UFORMATTEDDATE : $VMName : Attempting to power on VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        Start-VM –Name $VMName
+        while ($VMPowerState0 -eq "Off") {
+            $VMPowerState0 = Get-VM -Name $VMName | select -ExpandProperty State
+            Write-Output $VMPowerState0
+        }
+        if ($VMPowerState1 -eq "Running") {
+            Write-Output "$UFORMATTEDDATE : $VMName : Successfully powered on VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        }else{
+            Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed to power on VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+            exit
+        }
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Warning. The VM $VMName is already in a powered on state." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }
 
 }
+
+
 
 
