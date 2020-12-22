@@ -7,7 +7,6 @@
 
 )
 
-$VMName = "Win10-010"
 
 #Configure Logging
 $LOGDIR = $env:TEMP
@@ -23,7 +22,7 @@ If ($LOGTEST -eq $false) {
 Write-Output "********Begin Logging $UFORMATTEDDATE********" | out-file $LOGPATH -Append -Force -NoClobber 
 
 #Clear logs older than 6 days
-Get-ChildItem $LOGDIR -Recurse -File | Where CreationTime -lt  (Get-Date).AddDays(-6)  | Remove-Item -Force
+#Get-ChildItem $LOGDIR -Recurse -File | Where CreationTime -lt  (Get-Date).AddDays(-6)  | Remove-Item -Force
 
 #Windows Client
 If ($VMType -eq "Workstation") {
@@ -45,7 +44,7 @@ if (Test-Path -Path $BootFile) {
     Write-Output "$UFORMATTEDDATE : $VMName : Successfully validated the boot file ISO is available." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
 }else{
     Write-Output "$UFORMATTEDDATE : $VMName : Error! The boot file ISO was not found. Please validate the boot file path." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-    #exit   
+    exit   
 }
 
 #Begin VM creation
@@ -63,7 +62,7 @@ if (!$VMExists0) {
     $VMExists1 = get-vm -Name $VMName
     if (!$VMExists1) {
         Write-Output "$UFORMATTEDDATE : $VMName : Error! Cannot create the virtual machine. Please see HyperV event logs for more details." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        #exit
+        exit
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : A new virtual machine was successfully created." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }
@@ -81,13 +80,13 @@ if (!$VHDExists0) {
     $VHDExists1 = Get-VHD -Path $VHDPath
     if (!$VHDExists1) {
         Write-Output "$UFORMATTEDDATE : $VMName : Error! A virtual hard disk was not created. Please see HyperV event logs for more details." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        #exit
+        exit
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : A virtual hard disk was created in the following location: $VHDPath." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }
 }else{
     Write-Output "$UFORMATTEDDATE : $VMName : Error! A VHD file already exists with the name ""$VMName.vhdx""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-    #exit
+    exit
 }
 
 
@@ -101,7 +100,7 @@ if (!$VHDConnect0) {
 
     if (!$VHDConnect) {
         Write-Output "$UFORMATTEDDATE : $VMName : Error! The virtual machine has no virtual disks connected." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        #exit
+        exit
     }else{
 
         $VHDControllerNum = $VHDConnect.ControllerNumber
@@ -124,13 +123,13 @@ $VMNetConnect = Get-VMNetworkAdapter -VMName $VMName
 $VMNetConnectSwitch = $VMNetConnect.SwitchName
 if (!$VMNetConnectSwitch) {
     Write-Output "$UFORMATTEDDATE : $VMName : Error! There is no switch associated to the virtual network adapter." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-    #exit
+    exit
 }else{
     if ($VMNetConnectSwitch -eq "internal") {
         Write-Output "$UFORMATTEDDATE : $VMName : The virtual network adapter has the ""Internal"" switch defined successfully." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : Error! There is a virtual switch defined, but it is not internal. The switch that it is connected to is $VMNetConnectSwitch. Please troubleshoot manually." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        #exit
+        exit
     }
 }
     
@@ -167,7 +166,7 @@ if ($MacAddr -eq "000000000000") {
         Write-Output "$UFORMATTEDDATE : $VMName : The MAC address $macaddr2." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : There seems to be some problems with the MAC address.  Please troubleshoot manually." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        #exit
+        exit
     }
 }
 
@@ -192,13 +191,13 @@ if ($env:SMS_ADMIN_UI_PATH) {
         Write-Output "$UFORMATTEDDATE : $VMName : Successfully connected to the Configuration Manager site: $PSA." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : Error: Could not connect to the Configuration Manager site: $PSA." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        #exit
+        exit
     }       
 
 
 }else{
     Write-Output "$UFORMATTEDDATE : $VMName : Error! Could not find or connect to the Configuration Manager PowerShell module." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-    #exit
+    exit
 }
 
 
@@ -220,7 +219,7 @@ if (!$CMDeviceExists0) {
         $CMDevice = Get-CMDevice -Name $VMName
         if ($C -eq "320") { 
         Write-Output "$UFORMATTEDDATE : $VMName : Error! It the device was not created in the Configuration Manager database." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        #exit 
+        exit 
         }
     }
 
@@ -259,27 +258,27 @@ if (!$CMDeviceExists0) {
                     Set-Location C:
                 }else{
                     Write-Output "$UFORMATTEDDATE : $VMName : Error validating the device $VMName was added to device collection $SCCMCollectionName02." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-                    #exit
+                    exit
                 }
 
             }else{
                  Write-Output "$UFORMATTEDDATE : $VMName : Error! A record for this device $VMName has been identified as a member of the collection $SCCMCollectionName02 or something else has gone wrong. Exiting script for further troubleshooting." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-                 #exit
+                 exit
             }
 
         }else{
             Write-Output "$UFORMATTEDDATE : $VMName : Error! Could not find a Device Collection with the name: $SCCMCollectionName02. Please validate manually." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-            #exit
+            exit
         }
 
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : Error! Could not find the computer record with the name $VMName in Configuration Manager.  Please see the Configuration Manager logs for more details." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        #exit        
+        exit        
     }
 
 }else{
     Write-Output "$UFORMATTEDDATE : $VMName : Error! A computer record with the name $VMName was found in the Configuration Manager database. The computer record was not created." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-    #exit
+    exit
 }
 
 
@@ -295,7 +294,7 @@ if (!$VMDVDCheck0) {
         Write-Output "$UFORMATTEDDATE : $VMName : Successfully created a DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed creating a DVD drive on VM $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        #exit
+        exit
     }
 
 }else{
@@ -315,16 +314,76 @@ if ($VMCDRomBootPath -eq $BootFile) {
 
 
 #Set Boot Order to DVDDrive
+Write-Output "$UFORMATTEDDATE : $VMName : Attempting to set DVDDrive as the primary boot device for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
 Set-VMFirmware -VMName $VMName -FirstBootDevice $VMCDRom
+$BootDevices = Get-VMFirmware -VMName $VMName | select -ExpandProperty BootOrder | select -ExpandProperty Device
+$FirstBootDevice = $BootDevices[0]
+$FirstBootDevicePath = $FirstBootDevice.Path
+if ($FirstBootDevicePath -eq $BootFile) {
+    Write-Output "$UFORMATTEDDATE : $VMName : Successfully set the DVDDrive as the primary boot device for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+}else{
+    Write-Output "$UFORMATTEDDATE : $VMName : Error! the boot device could not be validated for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+}
+
 
 #Set Dynamic Memory Details
-Set-VMMemory -VMName $VMName -DynamicMemoryEnabled $true -StartupBytes 4096MB -MinimumBytes 2148MB -MaximumBytes 4096MB
+Write-Output "$UFORMATTEDDATE : $VMName : Validating Dynamic Memory is enabled for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+$VMDynamicMemoryValue0 = Get-VMMemory -VMName $VMName | select -ExpandProperty DynamicMemoryEnabled
+
+if ($VMDynamicMemoryValue0 -eq $False) {
+    Write-Output "$UFORMATTEDDATE : $VMName : Dynamic Memory is not enabled for VM: $VMName. Enabling Dynamic Memory." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Set-VMMemory -VMName $VMName -DynamicMemoryEnabled $true -StartupBytes 4096MB -MinimumBytes 2148MB -MaximumBytes 4096MB
+    $VMDynamicMemoryValue1 = Get-VMMemory -VMName $VMName | select -ExpandProperty DynamicMemoryEnabled
+    if ($VMDynamicMemoryValue0 -eq "False") {
+        Write-Output "$UFORMATTEDDATE : $VMName : Error!  Dynamic Memory could not be enabled for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully enabled Dynamic Memory for VM: $VMName. Enabling Dynamic Memory. Configuring VM to use between 2148 MB and 4096 MB or RAM." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }
+}else{
+    Write-Output "$UFORMATTEDDATE : $VMName : Warning. The VM $VMName is already configured to use Dynamic Memory." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+}
 
 #Set Virtual Processor Count
-Set-VMProcessor -VMName $VMName -Count 2
-Start-VM –Name $VMName
+Write-Output "$UFORMATTEDDATE : $VMName : Validating CPU count VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+$VMCPUCount0 = Get-VMProcessor -VMName $VMName | select -ExpandProperty Count
+if ($VMCPUCount0 -ne 2) {
+    Write-Output "$UFORMATTEDDATE : $VMName : Setting CPU count from ""$VMCPUCount"" to ""2"" for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Set-VMProcessor -VMName $VMName -Count 2
+    $VMCPUCount1 = Get-VMProcessor -VMName $VMName | select -ExpandProperty Count
+    if ($VMCPUCount1 -eq 2) {
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully set the CPU count to ""2"" for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed to change the CPU count from ""$VMCPUCount"" to ""2"" for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
+    }
+
+}else{
+    Write-Output "$UFORMATTEDDATE : $VMName : Warning. The CPU count was already set to ""2"" for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+}
+
+#Start VM and Begin Setup
+Write-Output "$UFORMATTEDDATE : $VMName : Checking the powre state for VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+$VMPowerState0 = Get-VM -Name $VMName | select -ExpandProperty State
+if ($VMPowerState0 -eq "Off") {
+    Write-Output "$UFORMATTEDDATE : $VMName : Attempting to power on VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    Start-VM –Name $VMName
+    while ($VMPowerState0 -eq "Off") {
+        $VMPowerState0 = Get-VM -Name $VMName | select -ExpandProperty State
+        Write-Output $VMPowerState0
+    }
+    if ($VMPowerState1 -eq "Running") {
+        Write-Output "$UFORMATTEDDATE : $VMName : Successfully powered on VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+    }else{
+        Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed to power on VM: $VMName." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+        exit
+    }
+}else{
+    Write-Output "$UFORMATTEDDATE : $VMName : Warning. The VM $VMName is already in a powered on state." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
+}
 
 }
+
+
 
 If ($VMType -eq "Server") {
 
