@@ -19,7 +19,7 @@ If ($LOGTEST -eq $false) {
     New-Item -Path $LOGDIR -Name $LOGFILE -Force
 }
 
-Write-Output "********Begin Logging for $VMType $UFORMATTEDDATE********" | out-file $LOGPATH -Append -Force -NoClobber 
+Write-Output "********Begin Logging for $VMType $UFORMATTEDDATE********" | out-file $LOGPATH -Append -Force -NoClobber
 
 #Clear logs older than 6 days
 #Get-ChildItem $LOGDIR -Recurse -File | Where CreationTime -lt  (Get-Date).AddDays(-6)  | Remove-Item -Force
@@ -44,7 +44,7 @@ If ($VMType -eq "Workstation") {
         Write-Output "$UFORMATTEDDATE : $VMName : Successfully validated the boot file ISO is available." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : Error! The boot file ISO was not found. Please validate the boot file path." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        exit   
+        exit
     }
 
     #Begin VM creation
@@ -132,7 +132,7 @@ If ($VMType -eq "Workstation") {
             exit
         }
     }
-    
+
 
     #Start and Stop VM to generate MAC Address
     Write-Output "$UFORMATTEDDATE : $VMName : Beginning the process of generating a valid MAC address." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
@@ -192,7 +192,7 @@ If ($VMType -eq "Workstation") {
         }else{
             Write-Output "$UFORMATTEDDATE : $VMName : Error: Could not connect to the Configuration Manager site: $PSA." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
             exit
-        }       
+        }
 
 
     }else{
@@ -206,7 +206,7 @@ If ($VMType -eq "Workstation") {
     Write-Output "$UFORMATTEDDATE : $VMName : Validating a computer record with the name $VMName does not exist in Configuration Manager." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     $CMDeviceExists0 = Get-CMDevice -Name $VMName
     if (!$CMDeviceExists0) {
-    
+
         #Importing computer record
         Import-CMComputerInformation -ComputerName $VMName -MacAddress $macaddr2 -CollectionName $SCCMCollectionName01
         Invoke-CMCollectionUpdate -Name $SCCMCollectionName01
@@ -217,9 +217,9 @@ If ($VMType -eq "Workstation") {
             $C = $C+1
             #write-output "$C"
             $CMDevice = Get-CMDevice -Name $VMName
-            if ($C -eq "320") { 
+            if ($C -eq "320") {
             Write-Output "$UFORMATTEDDATE : $VMName : Error! It the device was not created in the Configuration Manager database." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-            exit 
+            exit
             }
         }
 
@@ -228,7 +228,7 @@ If ($VMType -eq "Workstation") {
         if ($CMDeviceExists1) {
 
             Write-Output "$UFORMATTEDDATE : $VMName : Validated the computer record with the name $VMName was successfully created in Configuration Manager." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        
+
             Write-Output "$UFORMATTEDDATE : $VMName : Attempting to add the computer record with the name $VMName to the $SCCMCollectionName02 collection in Configuration Manager." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
             Write-Output "$UFORMATTEDDATE : $VMName : Validating that the collection $SCCMCollectionName02 is available and that a device record with the name $VMName is not already a member." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
 
@@ -273,7 +273,7 @@ If ($VMType -eq "Workstation") {
 
         }else{
             Write-Output "$UFORMATTEDDATE : $VMName : Error! Could not find the computer record with the name $VMName in Configuration Manager.  Please see the Configuration Manager logs for more details." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-            exit        
+            exit
         }
 
     }else{
@@ -395,9 +395,10 @@ If ($VMType -eq "Server") {
     $BootFile = "E:\Media\source files\OSD\Boot ISO\U_LiteTouchPE_x64.iso"
     $MDTSQLServer = "SQL1.jam.on"
     $MDTSQLDB = "MDT"
+    $RoleValue = "1"
 
     Write-Output "$UFORMATTEDDATE : $VMName : The Boot file being used is: $BootFile" | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-    
+
 
     #Check for Boot file
     Write-Output "$UFORMATTEDDATE : $VMName : Validating the boot file ISO exists." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
@@ -406,7 +407,7 @@ If ($VMType -eq "Server") {
         Write-Output "$UFORMATTEDDATE : $VMName : Successfully validated the boot file ISO is available." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : Error! The boot file ISO was not found. Please validate the boot file path." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        exit   
+        exit
     }
 
 
@@ -559,15 +560,20 @@ If ($VMType -eq "Server") {
 
     #Create a new entry in the MDT Database
     Write-Output "$UFORMATTEDDATE : $VMName : Attempting to create a new record in the MDT database for computer: ""$VMName""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-    new-mdtcomputer -macAddress $MacAddr2 -description $VMName -settings @{OSInstall='YES'; OSDComputerName=$VMName}
+    new-mdtcomputer -macAddress $MacAddr2 -description $VMName -settings @{OSInstall='YES'; OSDComputerName=$VMName; OSRoles=$RoleValue}
     $MDTComputerExists = Get-MDTComputer -macAddress $macaddr2
     if ($MDTComputerExists) {
         Write-Output "$UFORMATTEDDATE : $VMName : Successfully created a new record in the MDT database for computer: ""$VMName""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
     }else{
         Write-Output "$UFORMATTEDDATE : $VMName : Error! Failed to create a new record in the MDT database for computer: ""$VMName""." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
-        exit      
+        exit
     }
 
+    #Set the Server role entry in the MDT Database
+    If ($MDTRole -ne $SKIP) {
+        $MDTRoleNames = (Get-MDTRole -name "CfgMgr Distribution Point").Role
+        Set-MDTComputerRole -id $($MDTComputerExists.ID) -roles $MDTRoleNames
+    }
 
     #Create DVD Drive and Connect to VM with mounted ISO
     Write-Output "$UFORMATTEDDATE : $VMName : Beginning creation of DVD drive on VM $VMName and mounting ISO file at: $BootFile." | Out-File -FilePath $LOGPATH -Append -Force -NoClobber
@@ -673,7 +679,3 @@ If ($VMType -eq "Server") {
     }
 
 }
-
-
-
-
